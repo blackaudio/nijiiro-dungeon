@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<title>日常ダンジョン</title>
+
+<style>
+body { background:#111; color:white; font-family:serif; text-align:center; overflow:hidden; }
+h2 { margin-top:35px; text-shadow:0 0 8px white; }
+#floor { opacity:0.6; margin-top:-10px; font-size:14px; }
+.grid { display:grid; grid-template-columns:repeat(5,60px); gap:5px; justify-content:center; margin-top:35px; }
+.cell { width:60px; height:60px; background:#111; border:1px solid #252525; cursor:pointer; }
+.cell.flash { background:#f5f5f5; border-color:#fff; box-shadow:0 0 18px white; transition:0.15s; }
+#text { margin-top:30px; font-size:18px; opacity:0.8; }
+.gameover #text { color:#ff2222; font-size:28px; text-shadow:0 0 10px red; }
+.red-word { position:fixed; color:#b00000; font-size:22px; opacity:0.65; pointer-events:none; text-shadow:0 0 8px red; animation:tremble 0.08s infinite alternate; }
+#retryBtn { display:none; margin-top:20px; background:#050000; color:#b00000; border:1px solid #500; padding:10px 18px; font-family:serif; cursor:pointer; }
+@keyframes tremble { from { transform:translate(0,0); } to { transform:translate(2px,-1px); } }
+</style>
+</head>
+
+<body>
+
+<h2>日常ダンジョン</h2>
+<div id="floor">地下 1 階</div>
+<div class="grid" id="grid"></div>
+<div id="text">触れてもいい</div>
+<button id="retryBtn">それでも潜る</button>
+
+<script>
+const grid = document.getElementById("grid");
+const text = document.getElementById("text");
+const floorText = document.getElementById("floor");
+const retryBtn = document.getElementById("retryBtn");
+
+let floor = 1;
+let mistakes = 0;
+let safeCount = 0;
+let ended = false;
+
+let dangerSet = new Set();
+let near = new Set();
+let clicked = new Set();
+
+const safeTexts = ["静かだ","ここはまだやさしい","光がやわらかい","何もない","見られてる気がする"];
+const nearTexts = ["少し湿っている","誰かが通った気がする","空気が少しだけ違う","近くにある","すぐ近くにいる"];
+const dangerTexts = ["ここは……さっきと同じ？","踏んだ","今、ずれた","見つかってしまった","誰の息遣い？"];
+const nextFloorTexts = ["床が沈む","下へ行ける","階段があった","もう少し深く"];
+
+function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+
+function neighbors(idx) {
+  const x = idx % 5;
+  const y = Math.floor(idx / 5);
+  const n = [];
+  if (x > 0) n.push(idx - 1);
+  if (x < 4) n.push(idx + 1);
+  if (y > 0) n.push(idx - 5);
+  if (y < 4) n.push(idx + 5);
+  return n;
+}
+
+function makeDangers(count) {
+  dangerSet.clear();
+  while (dangerSet.size < count) dangerSet.add(Math.floor(Math.random() * 25));
+}
+
+function makeNear() {
+  near.clear();
+  dangerSet.forEach(d => neighbors(d).forEach(n => {
+    if (!dangerSet.has(n)) near.add(n);
+  }));
+}
+
+function buildFloor() {
+  grid.innerHTML = "";
+  clicked.clear();
+  safeCount = 0;
+  mistakes = 0;
+  ended = false;
+  retryBtn.style.display = "none";
+
+  document.body.classList.remove("gameover");
+  document.body.style.background = getDepthColor();
+  document.body.style.transform = "none";
+  document.querySelectorAll(".red-word").forEach(e => e.remove());
+
+  floorText.innerText = "地下 " + floor + " 階";
+  text.innerText = floor === 1 ? "触れてもいい" : pick(nextFloorTexts);
+
+  const dangerCount = Math.min(3 + floor - 1, 8);
+  makeDangers(dangerCount);
+  makeNear();
+
+  for (let i = 0; i < 25; i++) {
+    let cell = document.createElement("div");
+    cell.className = "cell";
+
+    cell.onclick = () => {
+      if (ended || clicked.has(i)) return;
+      clicked.add(i);
+
+      cell.style.background = "#333";
+
+      setTimeout(() => cell.style.background = getDepthColor(), 120);
+
+      if (dangerSet.has(i)) {
+        text.innerText = pick(dangerTexts);
+        mistakes++;
+        document.body.style.transform = "translateX(4px)";
+        setTimeout(() => document.body.style.transform = "none", 100);
+        cell.style.borderColor = "#770000";
+      } else if (near.has(i)) {
+        text.innerText = pick(nearTexts);
+        safeCount++;
+        cell.style.borderColor = "#444";
+      } else {
+        text.innerText = pick(safeTexts);
+        safeCount++;
+        cell.style.borderColor = "#333";
+      }
+
+      if (mistakes >= 3) {
+        gameOver();
+        return;
+      }
+
+      if (safeCount >= 5) {
+        text.innerText = "床が光る";
+        document.querySelectorAll(".cell").forEach((cell, index) => {
+          setTimeout(() => cell.classList.add("flash"), index * 18);
+        });
+
+        setTimeout(() => {
+          floor++;
+          buildFloor();
+        }, 900);
+      }
+    };
+
+    grid.appendChild(cell);
+  }
+}
+
+function gameOver(){
+  ended = true;
+  document.body.classList.add("gameover");
+  document.body.style.background = "#050000";
+  document.body.style.transform = "translateX(3px) skewX(1deg)";
+  text.innerText = "地下 " + floor + " 階で、もう戻れない";
+
+  for (let i = 0; i < 45; i++) {
+    const word = document.createElement("div");
+    word.className = "red-word";
+    word.innerText = "もう戻れない";
+    word.style.left = Math.random() * 100 + "vw";
+    word.style.top = Math.random() * 100 + "vh";
+    word.style.fontSize = (14 + Math.random() * 28) + "px";
+    word.style.opacity = 0.25 + Math.random() * 0.5;
+    document.body.appendChild(word);
+  }
+
+  setTimeout(() => {
+    retryBtn.style.display = "inline-block";
+  }, 3000);
+}
+
+retryBtn.onclick = () => {
+  floor = 1;
+  buildFloor();
+};
+
+buildFloor();
+
+function getDepthColor() {
+  if (floor >= 200) return "#000010"; // 深すぎる青黒
+  if (floor >= 150) return "#100010"; // 紫黒
+  if (floor >= 100) return "#001010"; // 緑黒
+  if (floor >= 50) return "#100000";  // 赤黒
+  return "#111";                      // 通常
+}
+
+</script>
+
+</body>
+</html>
