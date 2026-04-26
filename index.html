@@ -6,43 +6,128 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 
 <style>
-body { background:#111; color:white; font-family:serif; text-align:center; overflow:hidden; }
+body {
+  background:#111;
+  color:white;
+  font-family:serif;
+  text-align:center;
+  overflow:hidden;
+  padding-bottom:100px;
+}
+
 h2 { margin-top:35px; text-shadow:0 0 8px white; }
 #floor { opacity:0.6; margin-top:-10px; font-size:14px; }
-.grid { display:grid; grid-template-columns:repeat(5, min(18vw, 70px)); gap:5px; justify-content:center; margin-top:35px; }
-.cell { width:min(18vw, 70px); height:min(18vw, 70px); background:#111; border:1px solid #252525; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
-.cell.flash { background:#f5f5f5; border-color:#fff; box-shadow:0 0 18px white; transition:0.15s; }
-#text { margin-top:30px; font-size:18px; opacity:0.8; }
-.gameover #text { color:#ff2222; font-size:28px; text-shadow:0 0 10px red; }
-.red-word, .white-word { position:fixed; font-size:22px; pointer-events:none; animation:tremble 0.08s infinite alternate; }
-.red-word { color:#b00000; opacity:0.65; text-shadow:0 0 8px red; }
-.white-word { color:#fff; opacity:0.7; text-shadow:0 0 10px white; }
-#retryBtn { display:none; margin-top:20px; background:#050000; color:#b00000; border:1px solid #500; padding:10px 18px; font-family:serif; cursor:pointer; touch-action:manipulation; -webkit-tap-highlight-color:transparent; }
+
 #langUI {
-  margin-top: 12px;
-  margin-bottom: 28px;
-  opacity: 0.75;
+  margin-top:12px;
+  margin-bottom:28px;
+  opacity:0.8;
 }
 
 #langUI button {
-  margin: 0 6px;
-  padding: 6px 18px;
-  border-radius: 18px;
-  border: none;
-  font-family: serif;
-  cursor: pointer;
+  margin:0 6px;
+  padding:6px 18px;
+  border-radius:18px;
+  border:1px solid #555;
+  background:#111;
+  color:#aaa;
+  font-family:serif;
+  cursor:pointer;
 }
-@keyframes tremble { from { transform:translate(0,0); } to { transform:translate(2px,-1px); } }
+
+#langUI button.active {
+  color:#fff;
+  border-color:#fff;
+  box-shadow:0 0 12px white;
+}
+
+.grid {
+  display:grid;
+  grid-template-columns:repeat(5, min(18vw, 70px));
+  gap:5px;
+  justify-content:center;
+  margin-top:35px;
+}
+
+.cell {
+  width:min(18vw, 70px);
+  height:min(18vw, 70px);
+  background:#111;
+  border:1px solid #252525;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+  transition:transform 0.08s ease;
+}
+
+.cell.flash {
+  background:#f5f5f5;
+  border-color:#fff;
+  box-shadow:0 0 18px white;
+  transition:0.15s;
+}
+
+#text { margin-top:30px; font-size:18px; opacity:0.8; }
+
+.gameover #text {
+  color:#ff2222;
+  font-size:28px;
+  text-shadow:0 0 10px red;
+}
+
+.red-word, .white-word {
+  position:fixed;
+  font-size:22px;
+  pointer-events:none;
+  animation:tremble 0.08s infinite alternate;
+}
+
+.red-word { color:#b00000; opacity:0.65; text-shadow:0 0 8px red; }
+.white-word { color:#fff; opacity:0.7; text-shadow:0 0 10px white; }
+
+#retryBtn {
+  position:fixed;
+  left:50%;
+  top:55%;
+  transform:translate(-50%, -50%) scale(0.65);
+  opacity:0;
+  pointer-events:none;
+
+  background:#050000;
+  color:#b00000;
+  border:1px solid #500;
+  padding:10px 18px;
+  font-family:serif;
+  cursor:pointer;
+  touch-action:manipulation;
+  -webkit-tap-highlight-color:transparent;
+
+  transition:0.28s cubic-bezier(.2,1.6,.5,1);
+  box-shadow:0 0 12px rgba(180,0,0,0.8);
+}
+
+#retryBtn.show {
+  opacity:0.85;
+  pointer-events:auto;
+  transform:translate(-50%, -50%) scale(1);
+}
+
+@keyframes tremble {
+  from { transform:translate(0,0); }
+  to { transform:translate(2px,-1px); }
+}
 </style>
 </head>
 
 <body>
 <h2>日常ダンジョン</h2>
+
 <div id="langUI">
-  <button onclick="setLang('ja')">JP</button>
-  <button onclick="setLang('en')">EN</button>
-  <button onclick="setLang('ko')">KO</button>
+  <button id="btn-ja" onclick="setLang('ja')">JP</button>
+  <button id="btn-en" onclick="setLang('en')">EN</button>
+  <button id="btn-ko" onclick="setLang('ko')">KO</button>
 </div>
+
 <div id="floor">地下 1 階</div>
 <div class="grid" id="grid"></div>
 <div id="text">触れてもいい</div>
@@ -53,8 +138,12 @@ const grid = document.getElementById("grid");
 const text = document.getElementById("text");
 const floorText = document.getElementById("floor");
 const retryBtn = document.getElementById("retryBtn");
+
 const tapSound = new Audio("https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/click1.wav");
-tapSound.volume = 0.15;
+tapSound.volume = 0.12;
+
+const rareSound = new Audio("https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/powerup1.wav");
+rareSound.volume = 0.18;
 
 let floor = 1;
 let playCount = 0;
@@ -62,15 +151,11 @@ let mistakes = 0;
 let safeCount = 0;
 let safeStreak = 0;
 let ended = false;
+let lang = "ja";
+
 let dangerSet = new Set();
 let near = new Set();
 let clicked = new Set();
-let lang = "ja";
-
-function setLang(newLang) {
-  lang = newLang;
-  buildFloor();
-}
 
 const texts = {
   ja: {
@@ -79,7 +164,16 @@ const texts = {
     danger: ["ここは……さっきと同じ？","踏んだ","今、ずれた","見つかってしまった","誰の息遣い？"],
     next: ["床が沈む","下へ行ける","階段があった","もう少し深く"],
     start: "触れてもいい",
-    guide: "マスに触れて、下への抜け道を探そう"
+    guide: "マスに触れて、下への抜け道を探そう",
+    omen: "床の奥で、何かが光った",
+    floorGlow: "床が光る",
+    rareFall: n => "地下 " + n + " 階まで、落ちる",
+    tooDeep: "深すぎる",
+    fall: "落ちる",
+    gameOver: n => "地下 " + n + " 階で、もう戻れない",
+    noWayBack: "もう戻れない",
+    retry: "それでも潜る",
+    floorLabel: n => "地下 " + n + " 階"
   },
 
   en: {
@@ -88,7 +182,16 @@ const texts = {
     danger: ["same as before?","stepped on it","it shifted","found you","someone breathing"],
     next: ["floor sinks","you can go down","stairs appeared","deeper still"],
     start: "you can touch",
-    guide: "Touch tiles to find a way down"
+    guide: "Touch tiles to find a way down",
+    omen: "something flickered below",
+    floorGlow: "the floor glows",
+    rareFall: n => "falling to Floor " + n,
+    tooDeep: "too deep",
+    fall: "fall",
+    gameOver: n => "Floor " + n + ". No way back.",
+    noWayBack: "no way back",
+    retry: "still go down",
+    floorLabel: n => "Floor " + n
   },
 
   ko: {
@@ -97,11 +200,37 @@ const texts = {
     danger: ["여기… 아까랑 같아?","밟았다","지금 흔들렸다","들켰다","숨소리"],
     next: ["바닥이 내려간다","아래로 갈 수 있다","계단이 있다","더 깊이"],
     start: "만져도 된다",
-    guide: "타일을 눌러 아래로 내려가는 길을 찾아"
+    guide: "타일을 눌러 아래로 내려가는 길을 찾아",
+    omen: "바닥 아래 무언가 빛났다",
+    floorGlow: "바닥이 빛난다",
+    rareFall: n => "지하 " + n + "층까지 떨어진다",
+    tooDeep: "너무 깊다",
+    fall: "추락",
+    gameOver: n => "지하 " + n + "층, 이제 돌아갈 수 없다",
+    noWayBack: "돌아갈 수 없다",
+    retry: "그래도 내려간다",
+    floorLabel: n => "지하 " + n + "층"
   }
 };
 
-function pick(arr){ return arr[Math.floor(Math.random() * arr.length)]; }
+function pick(arr){
+  return arr[Math.floor(Math.random() * arr.length)];
+}
+
+function play(sound){
+  sound.currentTime = 0;
+  sound.play().catch(() => {});
+}
+
+function updateLangButtons() {
+  document.querySelectorAll("#langUI button").forEach(btn => btn.classList.remove("active"));
+  document.getElementById("btn-" + lang).classList.add("active");
+}
+
+function setLang(newLang) {
+  lang = newLang;
+  buildFloor();
+}
 
 function neighbors(idx) {
   const x = idx % 5;
@@ -158,24 +287,26 @@ function buildFloor() {
   safeStreak = 0;
   mistakes = 0;
   ended = false;
-  retryBtn.style.display = "none";
+
+  retryBtn.classList.remove("show");
+  retryBtn.innerText = texts[lang].retry;
+
+  updateLangButtons();
 
   document.body.classList.remove("gameover");
   document.body.style.background = getDepthColor();
   document.body.style.transform = "none";
   document.querySelectorAll(".red-word, .white-word").forEach(e => e.remove());
 
-  
-  floorText.innerText =
-  lang === "ja" ? "地下 " + floor + " 階" :
-  lang === "en" ? "Floor " + floor :
-  "지하 " + floor + "층";
+  floorText.innerText = texts[lang].floorLabel(floor);
   text.innerText = floor === 1 ? texts[lang].start : pick(texts[lang].next);
+
   if (floor === 1 && playCount === 0) {
-  setTimeout(() => {
-    text.innerText = texts[lang].guide;
-  }, 800);
-}
+    setTimeout(() => {
+      text.innerText = texts[lang].guide;
+    }, 800);
+  }
+
   const dangerCount = Math.min(3 + floor - 1, 8);
   makeDangers(dangerCount);
   makeNear();
@@ -183,15 +314,11 @@ function buildFloor() {
   let rarePanel = -1;
   let rareJump = 0;
   const baseChance = 0.08;
-  const bonus = Math.min(playCount * 0.02, 0.2); // 最大+20%
+  const bonus = Math.min(playCount * 0.02, 0.2);
   const omen = Math.random() < (baseChance + bonus);
 
   if (omen) {
-  text.innerText =
-    lang === "ja" ? "床の奥で、何かが光った" :
-    lang === "en" ? "something flickered below" :
-    "바닥 아래 무언가 빛났다";  
-
+    text.innerText = texts[lang].omen;
 
     if (Math.random() < 0.5) {
       do {
@@ -207,29 +334,22 @@ function buildFloor() {
     cell.className = "cell";
 
     cell.onclick = () => {
-      tapSound.currentTime = 0;
-tapSound.play();
       if (ended || clicked.has(i)) return;
+
+      play(tapSound);
       clicked.add(i);
 
       cell.style.background = "#333";
       cell.style.transform = "scale(0.97)";
-setTimeout(()=> cell.style.transform = "scale(1)", 80);
+      setTimeout(() => cell.style.transform = "scale(1)", 80);
       setTimeout(() => cell.style.background = getDepthColor(), 120);
 
       if (i === rarePanel && rareJump > 0 && Math.random() < 0.15) {
+        play(rareSound);
+
         const superJump = 1000 + Math.floor(Math.random() * 9000);
-        text.innerText =
-  lang === "ja" ? "深すぎる" :
-  lang === "en" ? "too deep" :
-  "너무 깊다";
-
-whiteFlood(
-  lang === "ja" ? "落ちる" :
-  lang === "en" ? "fall" :
-  "추락"
-);
-
+        text.innerText = texts[lang].tooDeep;
+        whiteFlood(texts[lang].fall);
 
         setTimeout(() => {
           floor += superJump;
@@ -240,7 +360,9 @@ whiteFlood(
       }
 
       if (i === rarePanel) {
-        text.innerText = "地下 " + (floor + rareJump) + " 階まで、落ちる";
+        play(rareSound);
+
+        text.innerText = texts[lang].rareFall(floor + rareJump);
 
         document.querySelectorAll(".cell").forEach((c, index) => {
           setTimeout(() => c.classList.add("flash"), index * 10);
@@ -272,24 +394,22 @@ whiteFlood(
         safeStreak++;
         cell.style.borderColor = "#333";
       }
-      // 🎁ご褒美（統一）
-if (safeStreak >= 3 && Math.random() < 0.6) {
-  document.body.style.transform = "translateY(2px)";
-  setTimeout(()=> document.body.style.transform = "none", 80);
 
-  cell.classList.add("flash");
-  setTimeout(()=> cell.classList.remove("flash"), 120);
-}
+      if (safeStreak >= 3 && Math.random() < 0.6) {
+        document.body.style.transform = "translateY(2px)";
+        setTimeout(() => document.body.style.transform = "none", 80);
+
+        cell.classList.add("flash");
+        setTimeout(() => cell.classList.remove("flash"), 120);
+      }
 
       if (mistakes >= 3) {
+        gameOver();
+        return;
+      }
 
-  gameOver();
-
-  return;
-
-}
       if (safeCount >= 5) {
-        text.innerText = "床が光る";
+        text.innerText = texts[lang].floorGlow;
 
         document.querySelectorAll(".cell").forEach((c, index) => {
           setTimeout(() => c.classList.add("flash"), index * 18);
@@ -311,12 +431,12 @@ function gameOver(){
   document.body.classList.add("gameover");
   document.body.style.background = "#050000";
   document.body.style.transform = "translateX(3px) skewX(1deg)";
-  text.innerText = "地下 " + floor + " 階で、もう戻れない";
+  text.innerText = texts[lang].gameOver(floor);
 
   for (let i = 0; i < 45; i++) {
     const word = document.createElement("div");
     word.className = "red-word";
-    word.innerText = "もう戻れない";
+    word.innerText = texts[lang].noWayBack;
     word.style.left = Math.random() * 100 + "vw";
     word.style.top = Math.random() * 100 + "vh";
     word.style.fontSize = (14 + Math.random() * 28) + "px";
@@ -325,13 +445,14 @@ function gameOver(){
   }
 
   setTimeout(() => {
-    retryBtn.style.display = "inline-block";
+    retryBtn.classList.add("show");
   }, 3000);
 }
 
 retryBtn.onclick = () => {
   floor = 1;
   playCount++;
+  retryBtn.classList.remove("show");
   buildFloor();
 };
 
