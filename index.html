@@ -67,7 +67,34 @@ h2 { margin-top:35px; text-shadow:0 0 8px white; }
   transition:0.15s;
 }
 
+.cell.otherworld-panel {
+  background:radial-gradient(circle, #c000ff 0%, #52006b 55%, #16001f 100%);
+  border-color:#e36bff;
+  box-shadow:0 0 18px #b000ff, inset 0 0 16px #2b0038;
+  animation:nyuruPulse 1.15s infinite ease-in-out;
+}
+
 #text { margin-top:30px; font-size:18px; opacity:0.8; }
+
+body.otherworld {
+  background:#16001f !important;
+  filter:contrast(1.18) saturate(1.35);
+}
+
+body.otherworld h2 {
+  text-shadow:0 0 10px #e47cff;
+}
+
+body.otherworld #text {
+  color:#e9b5ff;
+  text-shadow:0 0 10px #b000ff;
+  letter-spacing:1px;
+}
+
+body.otherworld #floor {
+  color:#e9b5ff;
+  text-shadow:0 0 8px #b000ff;
+}
 
 .gameover #text {
   color:#ff2222;
@@ -75,7 +102,7 @@ h2 { margin-top:35px; text-shadow:0 0 8px white; }
   text-shadow:0 0 10px red;
 }
 
-.red-word, .white-word {
+.red-word, .white-word, .purple-word {
   position:fixed;
   font-size:22px;
   pointer-events:none;
@@ -84,6 +111,7 @@ h2 { margin-top:35px; text-shadow:0 0 8px white; }
 
 .red-word { color:#b00000; opacity:0.65; text-shadow:0 0 8px red; }
 .white-word { color:#fff; opacity:0.7; text-shadow:0 0 10px white; }
+.purple-word { color:#d77cff; opacity:0.45; text-shadow:0 0 10px #c000ff; }
 
 #retryBtn {
   position:fixed;
@@ -115,6 +143,12 @@ h2 { margin-top:35px; text-shadow:0 0 8px white; }
 @keyframes tremble {
   from { transform:translate(0,0); }
   to { transform:translate(2px,-1px); }
+}
+
+@keyframes nyuruPulse {
+  0% { transform:scale(1) skew(0deg); filter:hue-rotate(0deg); }
+  50% { transform:scale(1.08) skew(4deg); filter:hue-rotate(28deg); }
+  100% { transform:scale(1) skew(0deg); filter:hue-rotate(0deg); }
 }
 </style>
 </head>
@@ -157,6 +191,20 @@ let dangerSet = new Set();
 let near = new Set();
 let clicked = new Set();
 
+let isOtherworld = false;
+let otherworldFloor = 0;
+let showNuFloor = false;
+
+const OTHERWORLD_MAX = 3;
+
+const otherworldTexts = [
+  "にゅーん　ν階層　かえれなゐ",
+  "おな゙みはゎ　あゐこσεかゕ",
+  "まζみ　ゑらばれし　αβのした",
+  "ν階層　まだ　かえれなゐ",
+  "ゐつもの日常は　λれてゐる"
+];
+
 const texts = {
   ja: {
     safe: ["静かだ","ここはまだやさしい","光がやわらかい","何もない","見られてる気がする"],
@@ -173,7 +221,13 @@ const texts = {
     gameOver: n => "地下 " + n + " 階で、もう戻れない",
     noWayBack: "もう戻れない",
     retry: "それでも潜る",
-    floorLabel: n => "地下 " + n + " 階"
+    floorLabel: n => "地下 " + n + " 階",
+
+    otherworldEnter: "にゅーん　ν階層　かえれなゐ",
+    otherworldPanel: "床が、ニュルニュルしている",
+    otherworldClear: "ぜんぶ　ゆるされた",
+    otherworldBonus: n => n + "にゅーん　ゆるされた",
+    otherworldFloorLabel: n => "ν階層 " + n
   },
 
   en: {
@@ -191,7 +245,13 @@ const texts = {
     gameOver: n => "Floor " + n + ". No way back.",
     noWayBack: "no way back",
     retry: "still go down",
-    floorLabel: n => "Floor " + n
+    floorLabel: n => "Floor " + n,
+
+    otherworldEnter: "nyuun　ν layer　no way baλk",
+    otherworldPanel: "the floor writhes",
+    otherworldClear: "everything was forgiven",
+    otherworldBonus: n => n + " nyuun forgiven",
+    otherworldFloorLabel: n => "ν layer " + n
   },
 
   ko: {
@@ -209,7 +269,13 @@ const texts = {
     gameOver: n => "지하 " + n + "층, 이제 돌아갈 수 없다",
     noWayBack: "돌아갈 수 없다",
     retry: "그래도 내려간다",
-    floorLabel: n => "지하 " + n + "층"
+    floorLabel: n => "지하 " + n + "층",
+
+    otherworldEnter: "뉴운　ν계층　돌아갈 수 업ζ다",
+    otherworldPanel: "바닥이 꿈틀거린다",
+    otherworldClear: "전부 용서되었다",
+    otherworldBonus: n => n + "뉴운　용서되었다",
+    otherworldFloorLabel: n => "ν계층 " + n
   }
 };
 
@@ -280,6 +346,55 @@ function whiteFlood(message){
   }
 }
 
+function purpleFlood(message){
+  for (let i = 0; i < 38; i++) {
+    const word = document.createElement("div");
+    word.className = "purple-word";
+    word.innerText = message;
+    word.style.left = Math.random() * 100 + "vw";
+    word.style.top = Math.random() * 100 + "vh";
+    word.style.fontSize = (12 + Math.random() * 26) + "px";
+    word.style.opacity = 0.2 + Math.random() * 0.45;
+    document.body.appendChild(word);
+  }
+}
+
+function showNuThenFloor(){
+  showNuFloor = true;
+  floorText.innerText = "ν";
+
+  setTimeout(() => {
+    showNuFloor = false;
+    floorText.innerText = texts[lang].floorLabel(floor);
+  }, 650);
+}
+
+function enterOtherworld(){
+  isOtherworld = true;
+  otherworldFloor = 1;
+  play(rareSound);
+  purpleFlood("ν");
+  buildFloor();
+}
+
+function exitOtherworld(bonus){
+  isOtherworld = false;
+  otherworldFloor = 0;
+
+  floor += bonus;
+
+  document.body.classList.remove("otherworld");
+  document.querySelectorAll(".purple-word").forEach(e => e.remove());
+
+  buildFloor();
+
+  showNuThenFloor();
+
+  text.innerText = bonus === 1000
+    ? texts[lang].otherworldClear
+    : texts[lang].otherworldBonus(bonus);
+}
+
 function buildFloor() {
   grid.innerHTML = "";
   clicked.clear();
@@ -294,28 +409,45 @@ function buildFloor() {
   updateLangButtons();
 
   document.body.classList.remove("gameover");
-  document.body.style.background = getDepthColor();
+  document.body.classList.toggle("otherworld", isOtherworld);
+  document.body.style.background = isOtherworld ? "#16001f" : getDepthColor();
   document.body.style.transform = "none";
   document.querySelectorAll(".red-word, .white-word").forEach(e => e.remove());
 
-  floorText.innerText = texts[lang].floorLabel(floor);
-  text.innerText = floor === 1 ? texts[lang].start : pick(texts[lang].next);
+  if (!showNuFloor) {
+    floorText.innerText = isOtherworld
+      ? texts[lang].otherworldFloorLabel(otherworldFloor)
+      : texts[lang].floorLabel(floor);
+  }
 
-  if (floor === 1 && playCount === 0) {
+  if (isOtherworld) {
+    text.innerText = otherworldFloor === 1
+      ? texts[lang].otherworldEnter
+      : pick(otherworldTexts);
+  } else {
+    text.innerText = floor === 1 ? texts[lang].start : pick(texts[lang].next);
+  }
+
+  if (floor === 1 && playCount === 0 && !isOtherworld) {
     setTimeout(() => {
       text.innerText = texts[lang].guide;
     }, 800);
   }
 
-  const dangerCount = Math.min(3 + floor - 1, 8);
+  const dangerCount = isOtherworld
+    ? Math.min(4 + otherworldFloor, 8)
+    : Math.min(3 + floor - 1, 8);
+
   makeDangers(dangerCount);
   makeNear();
 
   let rarePanel = -1;
   let rareJump = 0;
+  let otherworldPanel = -1;
+
   const baseChance = 0.08;
   const bonus = Math.min(playCount * 0.02, 0.2);
-  const omen = Math.random() < (baseChance + bonus);
+  const omen = !isOtherworld && Math.random() < (baseChance + bonus);
 
   if (omen) {
     text.innerText = texts[lang].omen;
@@ -327,11 +459,24 @@ function buildFloor() {
 
       rareJump = 10 + Math.floor(Math.random() * 41);
     }
+
+    if (Math.random() < 0.5) {
+      do {
+        otherworldPanel = Math.floor(Math.random() * 25);
+      } while (
+        dangerSet.has(otherworldPanel) ||
+        otherworldPanel === rarePanel
+      );
+    }
   }
 
   for (let i = 0; i < 25; i++) {
     const cell = document.createElement("div");
     cell.className = "cell";
+
+    if (i === otherworldPanel) {
+      cell.classList.add("otherworld-panel");
+    }
 
     cell.onclick = () => {
       if (ended || clicked.has(i)) return;
@@ -339,12 +484,19 @@ function buildFloor() {
       play(tapSound);
       clicked.add(i);
 
-      cell.style.background = "#333";
       cell.style.transform = "scale(0.97)";
       setTimeout(() => cell.style.transform = "scale(1)", 80);
-      setTimeout(() => cell.style.background = getDepthColor(), 120);
 
-      if (i === rarePanel && rareJump > 0 && Math.random() < 0.15) {
+      if (i === otherworldPanel) {
+        text.innerText = texts[lang].otherworldPanel;
+        setTimeout(() => enterOtherworld(), 650);
+        return;
+      }
+
+      cell.style.background = "#333";
+      setTimeout(() => cell.style.background = isOtherworld ? "#16001f" : getDepthColor(), 120);
+
+      if (!isOtherworld && i === rarePanel && rareJump > 0 && Math.random() < 0.15) {
         play(rareSound);
 
         const superJump = 1000 + Math.floor(Math.random() * 9000);
@@ -359,7 +511,7 @@ function buildFloor() {
         return;
       }
 
-      if (i === rarePanel) {
+      if (!isOtherworld && i === rarePanel) {
         play(rareSound);
 
         text.innerText = texts[lang].rareFall(floor + rareJump);
@@ -377,22 +529,22 @@ function buildFloor() {
       }
 
       if (dangerSet.has(i)) {
-        text.innerText = pick(texts[lang].danger);
+        text.innerText = isOtherworld ? pick(otherworldTexts) : pick(texts[lang].danger);
         mistakes++;
         safeStreak = 0;
         document.body.style.transform = "translateX(4px)";
         setTimeout(() => document.body.style.transform = "none", 100);
-        cell.style.borderColor = "#770000";
+        cell.style.borderColor = isOtherworld ? "#b000ff" : "#770000";
       } else if (near.has(i)) {
-        text.innerText = pick(texts[lang].near);
+        text.innerText = isOtherworld ? pick(otherworldTexts) : pick(texts[lang].near);
         safeCount++;
         safeStreak++;
-        cell.style.borderColor = "#444";
+        cell.style.borderColor = isOtherworld ? "#7f3a99" : "#444";
       } else {
-        text.innerText = pick(texts[lang].safe);
+        text.innerText = isOtherworld ? pick(otherworldTexts) : pick(texts[lang].safe);
         safeCount++;
         safeStreak++;
-        cell.style.borderColor = "#333";
+        cell.style.borderColor = isOtherworld ? "#5c2870" : "#333";
       }
 
       if (safeStreak >= 3 && Math.random() < 0.6) {
@@ -404,20 +556,34 @@ function buildFloor() {
       }
 
       if (mistakes >= 3) {
-        gameOver();
+        if (isOtherworld) {
+          const failBonus = otherworldFloor * 100;
+          exitOtherworld(failBonus);
+        } else {
+          gameOver();
+        }
         return;
       }
 
       if (safeCount >= 5) {
-        text.innerText = texts[lang].floorGlow;
+        text.innerText = isOtherworld ? pick(otherworldTexts) : texts[lang].floorGlow;
 
         document.querySelectorAll(".cell").forEach((c, index) => {
           setTimeout(() => c.classList.add("flash"), index * 18);
         });
 
         setTimeout(() => {
-          floor++;
-          buildFloor();
+          if (isOtherworld) {
+            if (otherworldFloor >= OTHERWORLD_MAX) {
+              exitOtherworld(1000);
+            } else {
+              otherworldFloor++;
+              buildFloor();
+            }
+          } else {
+            floor++;
+            buildFloor();
+          }
         }, 900);
       }
     };
@@ -452,6 +618,8 @@ function gameOver(){
 retryBtn.onclick = () => {
   floor = 1;
   playCount++;
+  isOtherworld = false;
+  otherworldFloor = 0;
   retryBtn.classList.remove("show");
   buildFloor();
 };
