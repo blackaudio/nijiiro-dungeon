@@ -74,6 +74,23 @@ h2 { margin-top:35px; text-shadow:0 0 8px white; }
   animation:nyuruPulse 1.15s infinite ease-in-out;
 }
 
+.cell.chick-panel {
+  background:radial-gradient(circle, #fff8c6 0%, #ffd84a 60%, #b88400 100%);
+  border-color:#fff1a8;
+  box-shadow:0 0 16px #ffd84a, inset 0 0 12px #fff4a6;
+  animation:chickPulse 1.1s infinite ease-in-out;
+}
+
+.cell.chick-panel::after {
+  content:"🐤";
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  width:100%;
+  height:100%;
+  font-size:26px;
+}
+
 #text { margin-top:30px; font-size:18px; opacity:0.8; }
 
 body.otherworld {
@@ -102,7 +119,7 @@ body.otherworld #floor {
   text-shadow:0 0 10px red;
 }
 
-.red-word, .white-word, .purple-word {
+.red-word, .white-word, .purple-word, .love-word {
   position:fixed;
   font-size:22px;
   pointer-events:none;
@@ -112,6 +129,42 @@ body.otherworld #floor {
 .red-word { color:#b00000; opacity:0.65; text-shadow:0 0 8px red; }
 .white-word { color:#fff; opacity:0.7; text-shadow:0 0 10px white; }
 .purple-word { color:#d77cff; opacity:0.45; text-shadow:0 0 10px #c000ff; }
+
+.love-word {
+  color:#ffd1e8;
+  opacity:0.75;
+  text-shadow:0 0 10px #ff7ac8;
+  animation:loveFloat 1s ease-out forwards;
+}
+
+#hearts {
+  position:fixed;
+  inset:0;
+  pointer-events:none;
+  z-index:4;
+}
+
+.heart {
+  position:absolute;
+  opacity:0.42;
+  font-size:16px;
+  color:#ffd1e8;
+  text-shadow:0 0 8px #ff7ac8;
+  animation:heartFloat 6s ease-in-out infinite;
+}
+
+.dots {
+  position:fixed;
+  top:50%;
+  left:50%;
+  transform:translate(-50%, -50%);
+  font-size:32px;
+  opacity:0.6;
+  color:#fff;
+  text-shadow:0 0 10px white;
+  pointer-events:none;
+  z-index:8;
+}
 
 #retryBtn {
   position:fixed;
@@ -150,6 +203,23 @@ body.otherworld #floor {
   50% { transform:scale(1.08) skew(4deg); filter:hue-rotate(28deg); }
   100% { transform:scale(1) skew(0deg); filter:hue-rotate(0deg); }
 }
+
+@keyframes chickPulse {
+  0% { transform:scale(1) rotate(0deg); }
+  50% { transform:scale(1.08) rotate(2deg); }
+  100% { transform:scale(1) rotate(0deg); }
+}
+
+@keyframes loveFloat {
+  from { transform:translateY(0) scale(1); opacity:0.85; }
+  to { transform:translateY(-34px) scale(1.25); opacity:0; }
+}
+
+@keyframes heartFloat {
+  0% { transform:translateY(0) rotate(0deg); }
+  50% { transform:translateY(-10px) rotate(6deg); }
+  100% { transform:translateY(0) rotate(0deg); }
+}
 </style>
 </head>
 
@@ -165,6 +235,7 @@ body.otherworld #floor {
 <div id="floor">地下 1 階</div>
 <div class="grid" id="grid"></div>
 <div id="text">触れてもいい</div>
+<div id="hearts"></div>
 <button id="retryBtn">それでも潜る</button>
 
 <script>
@@ -178,6 +249,9 @@ tapSound.volume = 0.12;
 
 const rareSound = new Audio("https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/powerup1.wav");
 rareSound.volume = 0.18;
+
+const loveSound = new Audio("https://cdn.jsdelivr.net/gh/jshawl/AudioFX/sounds/bling1.wav");
+loveSound.volume = 0.13;
 
 let floor = 1;
 let playCount = 0;
@@ -195,7 +269,10 @@ let isOtherworld = false;
 let otherworldFloor = 0;
 let showNuFloor = false;
 
+let heartTriggered = false;
+
 const OTHERWORLD_MAX = 3;
+const MAX_HEARTS = 8;
 
 const otherworldTexts = [
   "にゅーん　ν階層　かえれなゐ",
@@ -203,6 +280,14 @@ const otherworldTexts = [
   "まζみ　ゑらばれし　αβのした",
   "ν階層　まだ　かえれなゐ",
   "ゐつもの日常は　λれてゐる"
+];
+
+const loveTexts = [
+  "알콩달콩♡",
+  "꽁냥꽁냥♡",
+  "콩닥콩닥♡",
+  "사랑해♡",
+  "🐤♡"
 ];
 
 const texts = {
@@ -222,6 +307,10 @@ const texts = {
     noWayBack: "もう戻れない",
     retry: "それでも潜る",
     floorLabel: n => "地下 " + n + " 階",
+
+    lovePanel: "알콩달콩♡",
+    loveFestival: "🐤で、満ちている",
+    loveJump: "愛が、重すぎる",
 
     otherworldEnter: "にゅーん　ν階層　かえれなゐ",
     otherworldPanel: "床が、ニュルニュルしている",
@@ -247,6 +336,10 @@ const texts = {
     retry: "still go down",
     floorLabel: n => "Floor " + n,
 
+    lovePanel: "alkong-dalkong♡",
+    loveFestival: "filled with 🐤",
+    loveJump: "love is too heavy",
+
     otherworldEnter: "nyuun　ν layer　no way baλk",
     otherworldPanel: "the floor writhes",
     otherworldClear: "everything was forgiven",
@@ -270,6 +363,10 @@ const texts = {
     noWayBack: "돌아갈 수 없다",
     retry: "그래도 내려간다",
     floorLabel: n => "지하 " + n + "층",
+
+    lovePanel: "알콩달콩♡",
+    loveFestival: "🐤로 가득하다",
+    loveJump: "사랑이 너무 무겁다",
 
     otherworldEnter: "뉴운　ν계층　돌아갈 수 업ζ다",
     otherworldPanel: "바닥이 꿈틀거린다",
@@ -359,6 +456,61 @@ function purpleFlood(message){
   }
 }
 
+function loveFlood(count){
+  for (let i = 0; i < count; i++) {
+    const word = document.createElement("div");
+    word.className = "love-word";
+    word.innerText = pick(loveTexts);
+    word.style.left = Math.random() * 100 + "vw";
+    word.style.top = Math.random() * 100 + "vh";
+    word.style.fontSize = (14 + Math.random() * 30) + "px";
+    word.style.opacity = 0.35 + Math.random() * 0.55;
+    document.body.appendChild(word);
+
+    setTimeout(() => word.remove(), 1000);
+  }
+}
+
+function addHeart(){
+  const container = document.getElementById("hearts");
+
+  if (container.children.length >= MAX_HEARTS) {
+    if (!heartTriggered) {
+      heartTriggered = true;
+      showDots();
+    }
+    return;
+  }
+
+  const el = document.createElement("div");
+  el.className = "heart";
+  el.innerText = "♡";
+  el.style.left = Math.random() * 100 + "%";
+  el.style.top = Math.random() * 100 + "%";
+  el.style.fontSize = (12 + Math.random() * 10) + "px";
+  el.style.opacity = 0.25 + Math.random() * 0.28;
+
+  container.appendChild(el);
+}
+
+function showDots(){
+  const el = document.createElement("div");
+  el.className = "dots";
+  el.innerText = "…";
+  document.body.appendChild(el);
+
+  setTimeout(() => {
+    el.remove();
+    heartTriggered = false;
+  }, 300);
+}
+
+function triggerLove(isFestival){
+  play(loveSound);
+  loveFlood(isFestival ? 55 : 8);
+  addHeart();
+}
+
 function showNuThenFloor(){
   showNuFloor = true;
   floorText.innerText = "ν";
@@ -412,7 +564,7 @@ function buildFloor() {
   document.body.classList.toggle("otherworld", isOtherworld);
   document.body.style.background = isOtherworld ? "#16001f" : getDepthColor();
   document.body.style.transform = "none";
-  document.querySelectorAll(".red-word, .white-word").forEach(e => e.remove());
+  document.querySelectorAll(".red-word, .white-word, .love-word").forEach(e => e.remove());
 
   if (!showNuFloor) {
     floorText.innerText = isOtherworld
@@ -444,6 +596,8 @@ function buildFloor() {
   let rarePanel = -1;
   let rareJump = 0;
   let otherworldPanel = -1;
+  let chickPanel = -1;
+  let chickFestival = false;
 
   const baseChance = 0.08;
   const bonus = Math.min(playCount * 0.02, 0.2);
@@ -470,12 +624,34 @@ function buildFloor() {
     }
   }
 
+  if (!isOtherworld) {
+    if (Math.random() < 0.10) {
+      do {
+        chickPanel = Math.floor(Math.random() * 25);
+      } while (
+        dangerSet.has(chickPanel) ||
+        chickPanel === rarePanel ||
+        chickPanel === otherworldPanel
+      );
+    }
+
+    if (Math.random() < 0.006) {
+      chickFestival = true;
+      chickPanel = -1;
+      text.innerText = texts[lang].loveFestival;
+    }
+  }
+
   for (let i = 0; i < 25; i++) {
     const cell = document.createElement("div");
     cell.className = "cell";
 
     if (i === otherworldPanel) {
       cell.classList.add("otherworld-panel");
+    }
+
+    if (!isOtherworld && (i === chickPanel || chickFestival)) {
+      cell.classList.add("chick-panel");
     }
 
     cell.onclick = () => {
@@ -486,6 +662,31 @@ function buildFloor() {
 
       cell.style.transform = "scale(0.97)";
       setTimeout(() => cell.style.transform = "scale(1)", 80);
+
+      if (!isOtherworld && chickFestival) {
+        triggerLove(true);
+        text.innerText = texts[lang].loveJump;
+
+        setTimeout(() => {
+          play(rareSound);
+          floor += 9999;
+          buildFloor();
+        }, 1050);
+
+        return;
+      }
+
+      if (!isOtherworld && i === chickPanel) {
+        triggerLove(false);
+        text.innerText = texts[lang].lovePanel;
+
+        setTimeout(() => {
+          floor += 3;
+          buildFloor();
+        }, 650);
+
+        return;
+      }
 
       if (i === otherworldPanel) {
         text.innerText = texts[lang].otherworldPanel;
